@@ -110,6 +110,6 @@ Issues and small fixes are welcome - see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Copyright (C) 2026. This project is licensed under the GNU Affero General Public License version 3, or (at your option) any later version. See [LICENSE](LICENSE).
+Copyright (C) 2026. This project is licensed under the GNU Affero General Public License version 3. See [LICENSE](LICENSE).
 
 Thanks to [ilyamiro / Serpantinum](https://github.com/ilyamiro/serpantinum) and [Darkkal44 / Qylock](https://github.com/Darkkal44/qylock) for the shell and the theme this builds on.
