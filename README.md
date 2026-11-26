@@ -26,8 +26,6 @@ Supports image and video wallpapers (.mp4, .webm, .mkv, .mov).
 
 Serpantinum recolours Kitty, GTK, Firefox, etc. with matugen  but SDDM is not in that list. Its `material-you` theme has hardcoded purple colours and a static background, so it never matches your desktop.
 
-This project closes that gap.
-
 ## Install
 
 Requirements: **Serpantinum** , `material-you` theme SDDM.
