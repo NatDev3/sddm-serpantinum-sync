@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# install.sh - v1.0.0
+# install.sh - v1.1.0
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026
 # SDDM theme by Darkkal44 / Qylock, Serpantinum by ilyamiro.
 set -euo pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 USER_NAME="${USER:-rop}"
 HOME_DIR="${HOME:-/home/$USER_NAME}"
 SCRIPTS_DIR="$HOME_DIR/scripts"
@@ -15,14 +15,16 @@ PALETTE="$HOME_DIR/.local/state/serpantinum/qs_matugen_colors.json"
 LOG_DIR="$HOME_DIR/.local/state/sddm-sync"
 LOG_FILE="$LOG_DIR/install.log"
 
-YES=0; DO_UNINSTALL=0; DO_CHECK=0
+YES=0; DO_UNINSTALL=0; DO_CHECK=0; DO_UPDATE=0; DO_REINSTALL=0; MENU_CHOSE=0
 for arg in "$@"; do
   case "$arg" in
     --yes|-y) YES=1 ;;
+    --update) DO_UPDATE=1 ;;
+    --reinstall) DO_REINSTALL=1 ;;
     --uninstall) DO_UNINSTALL=1 ;;
     --check) DO_CHECK=1 ;;
     --version) echo "install.sh $VERSION"; exit 0 ;;
-    --help|-h) echo "Usage: bash install/install.sh [--yes] [--uninstall] [--check] [--version]"; echo "  --yes        skip the confirm prompt"; echo "  --uninstall  remove watcher + service + sudoers rule, restore original theme"; echo "  --check      verify install only, change nothing"; echo "  --version    print version and exit"; exit 0 ;;
+    --help|-h) echo "Usage: bash install/install.sh [--yes] [--update] [--reinstall] [--uninstall] [--check] [--version]"; echo "  --yes        skip the confirm prompt (full install)"; echo "  --update     replace the scripts with this version, keep settings and backups (no prompt)"; echo "  --reinstall  full install again, no prompt"; echo "  --uninstall  remove watcher + service + sudoers rule, restore original theme"; echo "  --check      verify install only, change nothing"; echo "  --version    print version and exit"; echo "If SDDM sync is already installed and no flag is given, the installer asks what to do (update / reinstall / uninstall / cancel)."; exit 0 ;;
     *) echo "Unknown option: $arg (try --help)"; exit 1 ;;
   esac
 done
@@ -38,6 +40,99 @@ log() { echo "[$(date '+%H:%M:%S')] $*"; }
 mkdir -p "$LOG_DIR"
 # Log to install.log
 exec > >(tee -a "$LOG_FILE") 2>&1
+
+# Already installed? Ask what to do instead of blindly reinstalling.
+# --uninstall / --check / --update / --reinstall / --yes skip the menu.
+installed_version() {
+  local cli="$HOME_DIR/.local/bin/sddm-sync"
+  if [ -x "$cli" ]; then
+    "$cli" version 2>/dev/null | awk '{print $2}'
+  fi
+}
+# ver_cmp: -1 if $1 < $2, 0 if equal, 1 if $1 > $2
+ver_cmp() {
+  if [ "$1" = "$2" ]; then echo 0; return; fi
+  if [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]; then echo -1; else echo 1; fi
+}
+# Read one line from the terminal, even when piped (same trick as the confirm prompt).
+read_choice() {
+  if [ -t 0 ]; then
+    read -r -p "$1" REPLY
+  elif [ -r /dev/tty ]; then
+    read -r -p "$1" REPLY < /dev/tty
+  else
+    echo "No terminal available - re-run with --update, --reinstall, --uninstall or --yes."
+    exit 0
+  fi
+}
+if [ "$DO_UNINSTALL" -eq 0 ] && [ "$DO_CHECK" -eq 0 ] && [ "$DO_UPDATE" -eq 0 ] && [ "$DO_REINSTALL" -eq 0 ] && [ "$YES" -eq 0 ]; then
+  if [ -x "$HOME_DIR/.local/bin/sddm-sync" ] || [ -f "$SCRIPTS_DIR/sddm-sync.sh" ]; then
+    INSTALLED_VER="$(installed_version)"
+    # Only trust a version that looks like one (1.0.0); anything else counts as unknown.
+    case "$INSTALLED_VER" in
+      ''|*[!0-9.]*|.*) INSTALLED_VER="" ;;
+    esac
+    echo "== SDDM sync installer v$VERSION - user $USER_NAME =="
+    if [ -n "$INSTALLED_VER" ]; then
+      CMP="$(ver_cmp "$INSTALLED_VER" "$VERSION")"
+      case "$CMP" in
+        -1)
+          echo "SDDM sync v$INSTALLED_VER is already installed - this installer is v$VERSION."
+          echo "What do you want to do?"
+          echo "  1) Update     - replace the scripts with v$VERSION, keep settings and backups"
+          echo "  2) Reinstall  - full install again (fixes broken installs)"
+          echo "  3) Uninstall  - remove everything, restore the original theme"
+          echo "  4) Cancel     - change nothing"
+          read_choice "Choice [1-4]: "
+          case "$REPLY" in
+            1) DO_UPDATE=1; MENU_CHOSE=1 ;;
+            2) DO_REINSTALL=1; MENU_CHOSE=1 ;;
+            3) DO_UNINSTALL=1; MENU_CHOSE=1 ;;
+            *) echo "Cancelled. Nothing was changed."; exit 0 ;;
+          esac
+          ;;
+        0)
+          echo "SDDM sync v$VERSION is already installed - same as this installer."
+          echo "What do you want to do?"
+          echo "  1) Reinstall  - full install again (fixes broken installs)"
+          echo "  2) Uninstall  - remove everything, restore the original theme"
+          echo "  3) Cancel     - change nothing"
+          read_choice "Choice [1-3]: "
+          case "$REPLY" in
+            1) DO_REINSTALL=1; MENU_CHOSE=1 ;;
+            2) DO_UNINSTALL=1; MENU_CHOSE=1 ;;
+            *) echo "Cancelled. Nothing was changed."; exit 0 ;;
+          esac
+          ;;
+        1)
+          echo "SDDM sync v$INSTALLED_VER is already installed - newer than this installer (v$VERSION)."
+          echo "What do you want to do?"
+          echo "  1) Reinstall  - downgrade to v$VERSION (full install again)"
+          echo "  2) Uninstall  - remove everything, restore the original theme"
+          echo "  3) Cancel     - change nothing"
+          read_choice "Choice [1-3]: "
+          case "$REPLY" in
+            1) DO_REINSTALL=1; MENU_CHOSE=1 ;;
+            2) DO_UNINSTALL=1; MENU_CHOSE=1 ;;
+            *) echo "Cancelled. Nothing was changed."; exit 0 ;;
+          esac
+          ;;
+      esac
+    else
+      echo "SDDM sync is already installed, but its version could not be read."
+      echo "What do you want to do?"
+      echo "  1) Reinstall  - full install again (fixes broken installs)"
+      echo "  2) Uninstall  - remove everything, restore the original theme"
+      echo "  3) Cancel     - change nothing"
+      read_choice "Choice [1-3]: "
+      case "$REPLY" in
+        1) DO_REINSTALL=1; MENU_CHOSE=1 ;;
+        2) DO_UNINSTALL=1; MENU_CHOSE=1 ;;
+        *) echo "Cancelled. Nothing was changed."; exit 0 ;;
+      esac
+    fi
+  fi
+fi
 
 # Uninstall
 if [ "$DO_UNINSTALL" -eq 1 ]; then
@@ -93,8 +188,10 @@ if [ "$DO_CHECK" -eq 1 ]; then
   exit 0
 fi
 
-echo "== SDDM sync installer v$VERSION - user $USER_NAME =="
-if [ "$YES" -eq 0 ]; then
+if [ "$MENU_CHOSE" -eq 0 ]; then
+  echo "== SDDM sync installer v$VERSION - user $USER_NAME =="
+fi
+if [ "$YES" -eq 0 ] && [ "$MENU_CHOSE" -eq 0 ] && [ "$DO_UPDATE" -eq 0 ] && [ "$DO_REINSTALL" -eq 0 ]; then
   # Read from /dev/tty when piped, so the prompt still works.
   if [ -t 0 ]; then
     read -r -p "Do you want to install SDDM Serpantinum theme sync? [y/N] " answer
@@ -107,7 +204,7 @@ if [ "$YES" -eq 0 ]; then
   case "$answer" in y|Y|yes|YES) echo "Installing..." ;; *) echo "Cancelled. Nothing was changed."; exit 0 ;; esac
 fi
 
-# Requirements
+# Requirements - skipped on update, the scripts are the only thing changing.
 ensure_pkg() {
   local cmd="$1" pkg="$2" aur_pkg="${3:-$2}"
   if command -v "$cmd" >/dev/null 2>&1; then log "OK: $cmd"; return 0; fi
@@ -128,12 +225,14 @@ ensure_pkg() {
   echo "ERROR: could not install $pkg ($cmd still missing)."; exit 1
 }
 
-# git first, the self-update below needs it
-ensure_pkg git git
-# Self-update: if this installer lives in a git repo, pull the latest version first
-if [ -d "$(dirname "$0")/.git" ]; then
-  log "Updating installer from git..."
-  git -C "$(dirname "$0")" pull --ff-only || log "NOTE: git pull failed - continuing with the local copy."
+if [ "$DO_UPDATE" -eq 0 ]; then
+  # git first, the self-update below needs it
+  ensure_pkg git git
+  # Self-update: if this installer lives in a git repo, pull the latest version first
+  if [ -d "$(dirname "$0")/.git" ]; then
+    log "Updating installer from git..."
+    git -C "$(dirname "$0")" pull --ff-only || log "NOTE: git pull failed - continuing with the local copy."
+  fi
 fi
 # Keep a copy of this installer, so uninstall works without the Downloads folder.
 SHARE_DIR="${XDG_CACHE_HOME:-$HOME_DIR/.cache}/sddm-serpantinum-sync"
@@ -147,16 +246,18 @@ else
   log "NOTE: piped install ($0 is not a file) - skipping stored copy. To uninstall later, re-download the installer."
 fi
 
-ensure_pkg python3 python
-ensure_pkg ffmpeg ffmpeg
-ensure_pkg matugen matugen
-ensure_pkg inotifywait inotify-tools
+if [ "$DO_UPDATE" -eq 0 ]; then
+  ensure_pkg python3 python
+  ensure_pkg ffmpeg ffmpeg
+  ensure_pkg matugen matugen
+  ensure_pkg inotifywait inotify-tools
 
-# Serpantinum is required, this installer does not install it.
-command -v serpantinum >/dev/null 2>&1 || { echo "ERROR: 'serpantinum' not found. This sync is for Serpantinum users - install Serpantinum first (curl -fsSL install.serpantinum.dev | bash), then re-run."; exit 1; }
+  # Serpantinum is required, this installer does not install it.
+  command -v serpantinum >/dev/null 2>&1 || { echo "ERROR: 'serpantinum' not found. This sync is for Serpantinum users - install Serpantinum first (curl -fsSL install.serpantinum.dev | bash), then re-run."; exit 1; }
+fi
 
-# Theme missing, download it
-if [ ! -d "$THEME_DIR" ]; then
+# Theme missing, download it - skipped on update, the theme is already there.
+if [ "$DO_UPDATE" -eq 0 ] && [ ! -d "$THEME_DIR" ]; then
   log "Theme missing - downloading automatically from Darkkal44/qylock..."
   QYLOCK_TMP="$(mktemp -d)"
   git clone --depth 1 https://github.com/Darkkal44/qylock.git "$QYLOCK_TMP/qylock"
@@ -174,17 +275,20 @@ fi
 mkdir -p "$SCRIPTS_DIR" "$SERVICE_DIR" "$LOG_DIR"
 
 # Backups - keep the untouched theme file, patch from that every time.
-if [ ! -f "$THEME_DIR/Main.qml.orig" ]; then
-  if [ -f "$THEME_DIR/Main.qml.bak" ]; then
-    log "Using existing Main.qml.bak as pristine template..."
-    sudo cp "$THEME_DIR/Main.qml.bak" "$THEME_DIR/Main.qml.orig"
-  else
-    log "Saving pristine Main.qml.orig..."
-    sudo cp "$THEME_DIR/Main.qml" "$THEME_DIR/Main.qml.orig"
-    sudo cp "$THEME_DIR/Main.qml" "$THEME_DIR/Main.qml.bak"
+# Theme backups are skipped on update, they already exist from the first install.
+if [ "$DO_UPDATE" -eq 0 ]; then
+  if [ ! -f "$THEME_DIR/Main.qml.orig" ]; then
+    if [ -f "$THEME_DIR/Main.qml.bak" ]; then
+      log "Using existing Main.qml.bak as pristine template..."
+      sudo cp "$THEME_DIR/Main.qml.bak" "$THEME_DIR/Main.qml.orig"
+    else
+      log "Saving pristine Main.qml.orig..."
+      sudo cp "$THEME_DIR/Main.qml" "$THEME_DIR/Main.qml.orig"
+      sudo cp "$THEME_DIR/Main.qml" "$THEME_DIR/Main.qml.bak"
+    fi
   fi
+  [ -f "$THEME_DIR/bg_dark.jpg.bak" ] || sudo cp "$THEME_DIR/bg_dark.jpg" "$THEME_DIR/bg_dark.jpg.bak" 2>/dev/null || true
 fi
-[ -f "$THEME_DIR/bg_dark.jpg.bak" ] || sudo cp "$THEME_DIR/bg_dark.jpg" "$THEME_DIR/bg_dark.jpg.bak" 2>/dev/null || true
 [ -f "$SCRIPTS_DIR/sddm-sync.sh" ] && cp "$SCRIPTS_DIR/sddm-sync.sh" "$SCRIPTS_DIR/sddm-sync.sh.bak"
 [ -f "$SCRIPTS_DIR/sddm-watch.sh" ] && cp "$SCRIPTS_DIR/sddm-watch.sh" "$SCRIPTS_DIR/sddm-watch.sh.bak"
 
@@ -317,7 +421,7 @@ echo "$CURRENT_STATE" > "$STATE_FILE"
 log "SDDM synced (dark+light): $WALLPAPER"
 EOF
 chmod +x "$SCRIPTS_DIR/sddm-sync.sh"
-log "Wrote $SCRIPTS_DIR/sddm-sync.sh (v1.0.0)"
+log "Wrote $SCRIPTS_DIR/sddm-sync.sh (v$VERSION)"
 
 # sddm-watch.sh
 cat > "$SCRIPTS_DIR/sddm-watch.sh" << 'EOF'
@@ -345,7 +449,7 @@ inotifywait -m -q -e close_write,moved_to,create --format '%e %f' "$PALETTE_DIR"
 done
 EOF
 chmod +x "$SCRIPTS_DIR/sddm-watch.sh"
-log "Wrote $SCRIPTS_DIR/sddm-watch.sh (v1.0.0)"
+log "Wrote $SCRIPTS_DIR/sddm-watch.sh (v$VERSION)"
 
 # systemd service
 cat > "$SERVICE_DIR/sddm-sync-watcher.service" << EOF
@@ -377,7 +481,17 @@ case "${1:-help}" in
   check) bash "$SCRIPTS_DIR/sddm-sync.sh" --check 2>/dev/null || systemctl --user is-active --quiet sddm-sync-watcher.service && echo "OK   watcher running" || echo "MISS watcher not running"; ls -l /usr/share/sddm/themes/material-you/bg_dark.jpg 2>/dev/null || true ;;
   log) tail -f "$LOG_FILE" ;;
   status) systemctl --user status sddm-sync-watcher.service --no-pager ;;
-  version) echo "sddm-sync 1.0.0" ;;
+  version) echo "sddm-sync 1.1.0" ;;
+  update)
+    # Re-apply the stored installer copy (same version). For a newer release, re-run the installer from the repo.
+    if [ -f "${XDG_CACHE_HOME:-$HOME/.cache}/sddm-serpantinum-sync/install.sh" ]; then
+      bash "${XDG_CACHE_HOME:-$HOME/.cache}/sddm-serpantinum-sync/install.sh" --update
+    else
+      echo "Stored installer not found. Re-download it:"
+      echo "  curl -fsSL https://raw.githubusercontent.com/NatDev3/sddm-serpantinum-sync/main/install/install.sh -o /tmp/install.sh"
+      echo "  bash /tmp/install.sh --update"
+    fi
+    ;;
   uninstall)
     # Run the stored installer copy.
     if [ -f "${XDG_CACHE_HOME:-$HOME/.cache}/sddm-serpantinum-sync/install.sh" ]; then
@@ -388,23 +502,26 @@ case "${1:-help}" in
       echo "  bash /tmp/install.sh --uninstall"
     fi
     ;;
-  *) echo "Usage: sddm-sync {sync|check|log|status|version|uninstall}" ;;
+  *) echo "Usage: sddm-sync {sync|check|log|status|version|update|uninstall}" ;;
 esac
 EOF
 chmod +x "$HOME_DIR/.local/bin/sddm-sync"
-log "Wrote $HOME_DIR/.local/bin/sddm-sync (v1.0.0)"
+log "Wrote $HOME_DIR/.local/bin/sddm-sync (v$VERSION)"
 
-# Sudoers rule - only the copy commands, from the private runtime dir
-RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sddm-sync"
-SUDOERS_FILE="/etc/sudoers.d/sddm-sync"
-SUDOERS_LINE="$USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/cp $RUNTIME_DIR/sddm-bg.jpg $THEME_DIR/bg_dark.jpg, /usr/bin/cp $RUNTIME_DIR/sddm-bg.jpg $THEME_DIR/bg.jpg, /usr/bin/cp $RUNTIME_DIR/Main.qml $THEME_DIR/Main.qml, /usr/bin/chmod 644 $THEME_DIR/bg_dark.jpg $THEME_DIR/bg.jpg $THEME_DIR/Main.qml"
-if [ -f "$SUDOERS_FILE" ] && grep -qxF "$SUDOERS_LINE" "$SUDOERS_FILE"; then
-  log "Sudoers rule already present."
-else
-  log "Installing sudoers rule (password asked once)..."
-  echo "$SUDOERS_LINE" | sudo tee "$SUDOERS_FILE" >/dev/null
-  sudo chmod 440 "$SUDOERS_FILE"
-  sudo visudo -cf "$SUDOERS_FILE"
+# Sudoers rule - only the copy commands, from the private runtime dir.
+# Skipped on update, the rule is already there from the first install.
+if [ "$DO_UPDATE" -eq 0 ]; then
+  RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sddm-sync"
+  SUDOERS_FILE="/etc/sudoers.d/sddm-sync"
+  SUDOERS_LINE="$USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/cp $RUNTIME_DIR/sddm-bg.jpg $THEME_DIR/bg_dark.jpg, /usr/bin/cp $RUNTIME_DIR/sddm-bg.jpg $THEME_DIR/bg.jpg, /usr/bin/cp $RUNTIME_DIR/Main.qml $THEME_DIR/Main.qml, /usr/bin/chmod 644 $THEME_DIR/bg_dark.jpg $THEME_DIR/bg.jpg $THEME_DIR/Main.qml"
+  if [ -f "$SUDOERS_FILE" ] && grep -qxF "$SUDOERS_LINE" "$SUDOERS_FILE"; then
+    log "Sudoers rule already present."
+  else
+    log "Installing sudoers rule (password asked once)..."
+    echo "$SUDOERS_LINE" | sudo tee "$SUDOERS_FILE" >/dev/null
+    sudo chmod 440 "$SUDOERS_FILE"
+    sudo visudo -cf "$SUDOERS_FILE"
+  fi
 fi
 
 # Enable the watcher, run one sync now
@@ -415,9 +532,13 @@ log "Watcher restarted. Running one sync now..."
 bash "$SCRIPTS_DIR/sddm-sync.sh" --force
 
 echo ""
-echo "Done (v$VERSION). Test it:"
+if [ "$DO_UPDATE" -eq 1 ]; then
+  echo "Updated to v$VERSION. Test it:"
+else
+  echo "Done (v$VERSION). Test it:"
+fi
 echo "  sddm-greeter-qt6 --test-mode --theme $THEME_DIR"
 echo "  tail -f $LOG_DIR/sync.log"
 echo "Then change wallpaper in Super+W - SDDM should follow within ~3 seconds."
-echo "Update later: bash install/install.sh   |   Check: bash install/install.sh --check"
-echo "Uninstall:  bash install/install.sh --uninstall"
+echo "Run again any time: bash install/install.sh   # asks update / reinstall / uninstall"
+echo "Check: bash install/install.sh --check   |   Uninstall: bash install/install.sh --uninstall"

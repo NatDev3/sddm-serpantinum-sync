@@ -1,7 +1,7 @@
 # SDDM Serpantinum Sync
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](CHANGELOG.md)
 [![Arch Linux](https://img.shields.io/badge/Arch-CachyOS-1793D1.svg)](https://archlinux.org/)
 [![Serpantinum](https://img.shields.io/badge/Serpantinum-2.5.2-orange.svg)](https://github.com/ilyamiro/serpantinum)
 
@@ -20,7 +20,7 @@ Supports image and video wallpapers (.mp4, .webm, .mkv, .mov).
 
 <video src="docs/demo.mp4" controls></video>
 
-> **Status:** v1.0.0  public release. Tested on CachyOS + Serpantinum 2.5.2.
+> **Status:** v1.1.0  public release. Tested on CachyOS + Serpantinum 2.5.2.
 
 ## Why
 
@@ -51,14 +51,18 @@ sddm-sync check       # verify install
 sddm-sync log         # watch the sync log live
 sddm-sync status      # watcher service status
 sddm-sync version     # print version
+sddm-sync update      # re-apply the stored installer version
 sddm-sync uninstall   # tells you how to re-download the installer for a full uninstall
 ```
 
 ## Check, update, uninstall
 
+Run the installer again any time - if it's already installed, it asks whether to update, reinstall, or uninstall.
+
 ```bash
 bash install/install.sh --check      # verify only, change nothing
-bash install/install.sh --yes        # re-run to update (safe, keeps backups)
+bash install/install.sh --update     # replace the scripts, keep settings and backups
+bash install/install.sh --reinstall  # full install again (fixes broken installs)
 bash install/install.sh --uninstall  # remove watcher + service + sudoers rule,
                                        # restore original Main.qml + background automatically
 

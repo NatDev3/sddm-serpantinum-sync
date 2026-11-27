@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0 - 28 Nov 2026
+
+- Re-running the installer no longer reinstalls blindly - it asks what to do: update, reinstall, uninstall, or cancel
+- Update replaces only the scripts, keeps settings and backups, and skips the dependency and sudoers steps
+- `sddm-sync update` re-applies the stored installer version; `--update` and `--reinstall` flags for scripted use
+- Version-aware: update is only offered when the installer is newer than the installed version
+
 ## 1.0.0 - 26 Nov 2026
 
 - SDDM follows your Serpantinum wallpaper - background and colours sync automatically, in dark and light mode
