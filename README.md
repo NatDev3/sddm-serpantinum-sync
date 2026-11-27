@@ -18,13 +18,15 @@ Supports image and video wallpapers (.mp4, .webm, .mkv, .mov).
 | ![Before, dark](docs/before-dark.png) | ![After, dark](docs/after-dark.png) |
 | ![Before, light](docs/before-light.png) | ![After, light](docs/after-light.png) |
 
-<video src="docs/demo.mp4" controls></video>
+<video src="https://github.com/user-attachments/assets/65e22cb9-dd04-4908-a828-48c5e700dba5" controls></video>
 
 > **Status:** v1.1.0  public release. Tested on CachyOS + Serpantinum 2.5.2.
 
 ## Why
 
 Serpantinum recolours Kitty, GTK, Firefox, etc. with matugen  but SDDM is not in that list. Its `material-you` theme has hardcoded purple colours and a static background, so it never matches your desktop.
+
+This project closes that gap.
 
 ## Install
 
