@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# install.sh - v1.1.0
+# install.sh - v1.2.0
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026
 # SDDM theme by Darkkal44 / Qylock, Serpantinum by ilyamiro.
 set -euo pipefail
 
-VERSION="1.1.0"
-USER_NAME="${USER:-rop}"
+VERSION="1.2.0"
+USER_NAME="${USER:-$(whoami)}"
 HOME_DIR="${HOME:-/home/$USER_NAME}"
 SCRIPTS_DIR="$HOME_DIR/scripts"
 SERVICE_DIR="$HOME_DIR/.config/systemd/user"
@@ -321,6 +321,13 @@ trap 'log "ERROR: sync failed at line $LINENO"' ERR
 
 # Skip if nothing changed, unless --force
 STATE_FILE="$LOG_DIR/last-state"
+# The wallpaper query talks to the running serpantinum shell, so it needs the
+# graphical session (WAYLAND_DISPLAY). if the watcher starts before the
+# session was ready, fail clearly instead of dying silently at the query.
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  log "ERROR: WAYLAND_DISPLAY not set - the watcher is not running in grapichal session (service must be WantedBy=graphical-session.target)"
+  exit 1
+fi
 WALLPAPER="$(serpantinum info wallpaper)"
 [ -n "$WALLPAPER" ] || { log "ERROR: serpantinum info wallpaper returned empty"; exit 1; }
 [ -f "$WALLPAPER" ] || { log "ERROR: wallpaper file not found: $WALLPAPER"; exit 1; }
@@ -456,15 +463,16 @@ cat > "$SERVICE_DIR/sddm-sync-watcher.service" << EOF
 [Unit]
 Description=Auto-sync SDDM theme on wallpaper change (inotify)
 After=graphical-session.target
+PartOf=graphical-session.target
 
 [Service]
 Environment=PATH=$HOME_DIR/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/usr/bin/bash $HOME_DIR/scripts/sddm-watch.sh
-Restart=on-failure
+Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target
 EOF
 log "Wrote $SERVICE_DIR/sddm-sync-watcher.service"
 
@@ -481,7 +489,7 @@ case "${1:-help}" in
   check) bash "$SCRIPTS_DIR/sddm-sync.sh" --check 2>/dev/null || systemctl --user is-active --quiet sddm-sync-watcher.service && echo "OK   watcher running" || echo "MISS watcher not running"; ls -l /usr/share/sddm/themes/material-you/bg_dark.jpg 2>/dev/null || true ;;
   log) tail -f "$LOG_FILE" ;;
   status) systemctl --user status sddm-sync-watcher.service --no-pager ;;
-  version) echo "sddm-sync 1.1.0" ;;
+  version) echo "sddm-sync 1.2.0" ;;
   update)
     # Re-apply the stored installer copy (same version). For a newer release, re-run the installer from the repo.
     if [ -f "${XDG_CACHE_HOME:-$HOME/.cache}/sddm-serpantinum-sync/install.sh" ]; then
@@ -524,8 +532,12 @@ if [ "$DO_UPDATE" -eq 0 ]; then
   fi
 fi
 
-# Enable the watcher, run one sync now
+# Enable the watcher, run one sync
+# Disable first to drop stale enable symlinks. v1.0.0 used default.target, v1.1.0+ uses graphical-session.target.
+# Use graphical-session.target, and leftover default.target link
+# would start the watcher too early (before the graphical session is ready).
 systemctl --user daemon-reload
+systemctl --user disable sddm-sync-watcher.service 2>/dev/null || true
 systemctl --user enable --now sddm-sync-watcher.service
 systemctl --user restart sddm-sync-watcher.service
 log "Watcher restarted. Running one sync now..."

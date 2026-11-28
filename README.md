@@ -1,7 +1,7 @@
 # SDDM Serpantinum Sync
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](CHANGELOG.md)
 [![Arch Linux](https://img.shields.io/badge/Arch-CachyOS-1793D1.svg)](https://archlinux.org/)
 [![Serpantinum](https://img.shields.io/badge/Serpantinum-2.5.2-orange.svg)](https://github.com/ilyamiro/serpantinum)
 
@@ -20,7 +20,7 @@ Supports image and video wallpapers (.mp4, .webm, .mkv, .mov).
 
 https://github.com/user-attachments/assets/65e22cb9-dd04-4908-a828-48c5e700dba5
 
-> **Status:** v1.1.0  public release. Tested on CachyOS + Serpantinum 2.5.2.
+> **Status:** v1.2.0  release. Tested on CachyOS + Serpantinum 2.5.4.
 
 ## Why
 
@@ -45,8 +45,6 @@ bash install.sh
 
 ##  sddm-sync command
 
-After install, you don't need the installer folder anymore:
-
 ```bash
 sddm-sync sync        # force one sync now
 sddm-sync check       # verify install
@@ -59,7 +57,7 @@ sddm-sync uninstall   # tells you how to re-download the installer for a full un
 
 ## Check, update, uninstall
 
-Run the installer again any time - if it's already installed, it asks whether to update, reinstall, or uninstall.
+Run the installer again - if it's already installed, it asks whether to update, reinstall, or uninstall.
 
 ```bash
 bash install/install.sh --check      # verify only, change nothing
@@ -73,7 +71,7 @@ bash install/install.sh --help
 
 ```
 
-Test it after install:
+Test after install:
 
 ```bash
 sddm-greeter-qt6 --test-mode --theme /usr/share/sddm/themes/material-you
